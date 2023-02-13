@@ -1,0 +1,402 @@
+Terraform:
+==========================================
+https://www.youtube.com/watch?v=IT-Tpunrf7A
+https://www.youtube.com/watch?v=GXVO9PNEnU4
+ 
+===================================
+AWS ec2 provisioning ways:
+===================================
+ 
+Pre-requisites:
+==================
+1. Get Access Key and Secret key from ec2 AMI machine.
+2. Go to folder usr/local/bin/
+3. Download and install terraform (wget https://releases.hashicorp.com/terraform/0.11.11/terraform_0.11.11_linux_amd64.zip )
+4. Run below scripts:( Have to run each and everytime login in to system)
+   echo $"export PATH=$PATH:$(pwd)" >> ~/.bash_profile
+   source ~/.bash_profile
+
+ Update the below path under :.bash_profile (export PATH=$PATH:$HOME/bin:)
+
+export PATH=$PATH:$HOME/bin:/sbin:/bin:/usr/sbin:/usr/bin:/opt/aws/bin:/usr/local/bin/terraform-pro
+ 
+Note : 1. Terraform is idempotent (It won't give any side effect, if you run same tf multiple times it won't create multiple infrastructure)
+       2. How to import a resource : terraform aws_instance.terraform-server.I-8745983753dsf79d8f
+ 
+==================================================================
+1st method: Just creating ec2 instance
+==================================================================
+provider "aws"
+{
+region = "us-east-2"
+}
+ 
+resource "aws_instance" "Terra-Instance"
+{
+                ami = "ami-0b500ef59d8335eee"
+                instance_type = "t2.micro"
+                key_name = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCYj4qCJmDbM9P1U6+TYBiYWggNOtnTQiNn7QL/1/zAqjvFG6Qj2g2hPKHieiGyt0wKMmhYqXu3uaBzRM0zYdvvWauOZeQPH//eqfTRrpiTgJQQZqLG3f7+UVm6BcRfRikBRe7dWpDUe1MLkwAouySEYX2JZmpGInBAJPyMJ097ADs4AZX3AqD6B7pkb9JrQKLYYNlNleC/37c0k+TJh06Quxa89iJnKYI413Qs6N0haUvyErr6RcOGS+ArrLAuUWZChh+G4umYb4dPGtBc6wDkBv3+rom3MTNmhTgNoXDa3Dt/UnSFcywcFctS6OhTu0R6oyjQtyfdkBEfhkMFVp77 root@ip-172-31-36-75"
+                tags {
+               
+                Name = "Aws-Terraform"
+             }
+ 
+}
+ 
+Execution steps:
+1. terraform init
+2. terraform plan ( you can find which are all resources are going to create)
+3. terraform apply (It will create resources)
+===================================================================
+ 
+2nd Method:(Public key interpolation)
+===================================================================
+provider "aws"
+{
+region = "us-east-2"
+}
+ 
+resource "aws_key_pair" "terraform-key" {
+  key_name   = "terraform-key"
+  public_key = "${file("terra-key.pub")}"
+}
+ 
+resource "aws_instance" "Terra-Instance"
+{
+                ami = "ami-0b500ef59d8335eee"
+                instance_type = "t2.micro"
+                key_name = "${aws_key_pair.terraform-key.key_name}"
+                tags {
+               
+                Name = "Aws-Terraform"
+             }
+ 
+}
+ 
+Execution steps:
+1. terraform init
+2. terraform plan ( you can find which are all resources are going to create)
+3. terraform apply (It will create resources)
+===================================================================
+3rd Type: Relacing core values with string/text variable
+======================================================================
+provider "aws"
+{
+region = "${var.Aws-region}"
+}
+ 
+resource "aws_key_pair" "terraform-key" {
+  key_name   = "terraform-key"
+  public_key = "${file("terra-key.pub")}"
+}
+ 
+resource "aws_instance" "Terra-Instance"
+{
+                ami = "${var.Aws-ami}"
+                instance_type = "${var.Aws-Instancetype}"
+                key_name = "${aws_key_pair.terraform-key.key_name}"
+                user_data = "$file("Apache-App.sh")"
+                tags {
+               
+                Name = "Aws-Terraform"
+             }
+ 
+}
+=================
+variables.tf
+=================
+ 
+variable "Aws-region"
+{
+default = "us-east-2"
+}
+variable "Aws-ami"
+{
+default = "ami-0b500ef59d8335eee"
+}
+variable "Aws-Instancetype"
+{
+default = "t2.micro"
+}
+===================
+Apache-App.sh (User data : Httpd Installation shell script)
+===================
+#! /bin/bash
+ 
+yum install httpd -y
+service httpd start
+chkconfig httpd on
+echo "<h1>This is Terraform server</h1>" >> /var/www/html/index.html
+ 
+Execution steps:
+1. terraform init
+2. terraform plan ( you can find which are all resources are going to create)
+3. terraform apply (It will create resources)
+==================================================================================
+4th method: Relacing core values with string/text and map variables
+==================================================================================
+provider "aws"
+{
+region = "${var.Aws-region}"
+}
+ 
+resource "aws_key_pair" "terraform-key" {
+  key_name   = "terraform-key"
+  public_key = "${file("terra-key.pub")}"
+}
+ 
+resource "aws_instance" "Terra-Instance"
+{
+                ami = "${lookup(var.Aws-ami,var.Aws-region)}"
+                instance_type = "${var.Aws-Instancetype}"
+                key_name = "${aws_key_pair.terraform-key.key_name}"
+                user_data = "${file("Apache-App.sh")}"
+                tags {
+               
+                Name = "Aws-Terraform"
+             }
+ 
+}
+=================
+variablesmap.tf
+=================
+ 
+variable "Aws-region"
+{
+default = "us-east-2"
+}
+variable "Aws-ami"
+{
+type = "map"
+default = {
+us-east-2 = "ami-0b500ef59d8335eee"
+us-east-1 = "ami-035be7bafff33b6b6"
+}
+}
+variable "Aws-Instancetype"
+{
+default = "t2.micro"
+}
+ 
+Execution steps:
+1. terraform init
+2. terraform plan ( you can find which are all resources are going to create)
+3. terraform apply (It will create resources)
+=========================================================================
+5th Method : Relacing core values with string/text, map and list variables
+==========================================================================
+provider "aws"
+{
+region = "${var.Aws-region}"
+}
+ 
+resource "aws_key_pair" "terraform-key" {
+  key_name   = "terraform-key"
+  public_key = "${file("terra-key.pub")}"
+}
+ 
+resource "aws_instance" "Terra-Instance"
+{
+                count = "${var.Aws-Instancetypecount}"
+                ami = "${lookup(var.Aws-ami,var.Aws-region)}"
+                instance_type = "${var.Aws-Instancetype}"
+                key_name = "${aws_key_pair.terraform-key.key_name}"
+                user_data = "${file("Apache-App.sh")}"
+                tags {
+               
+                Name = "${element(var.Aws-Name,count.index)}"
+             }
+}
+=================
+variablelist.tf
+=================
+ 
+variable "Aws-region"
+{
+default = "us-east-1"
+}
+variable "Aws-ami"
+{
+type = "map"
+default = {
+us-east-2 = "ami-0b500ef59d8335eee"
+us-east-1 = "ami-035be7bafff33b6b6"
+}
+}
+variable "Aws-Instancetype"
+{
+default = "t2.micro"
+}
+variable "Aws-Instancetypecount"
+{
+default = "3"
+}
+variable "Aws-Name"
+{
+type = "list"
+default = ["Aws-Terraform1", "Aws-Terraform2","Aws-Terraform3"]
+}
+ 
+Execution steps:
+1. terraform init
+2. terraform plan ( you can find which are all resources are going to create)
+3. terraform apply (It will create resources)
+
+1++++++++++++++++++++++++++++++++++
+provider "aws"
+{
+region = "${var.region}"
+}
+
+2**************************************
+resource "aws_vpc" "awsvpc" {
+  cidr_block       = "${vpc-cidr}"
+  instance_tenancy = "default"
+
+  tags = {
+    Name = "MYVPC"
+  }
+}
+
+3$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+resource "aws_subnet" "awspub-subnet" {
+  count = "${length("var.subnet-cidr")}"
+  vpc_id     = "${aws_vpc.awsvpc.id}"
+  cidr_block = "${element(var.subnet-cidr,count.index)}"
+  availability_zone = "${element(var.Avz,count.index)}"
+  tags = {
+    Name = "PublicSubnet-${count.index +1}"
+  }
+}
+
+4###########################################
+resource "aws_route_table" "pub-rt" {
+  vpc_id     = "${aws_vpc.awsvpc.id}"
+route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = "${aws_internet_gateway.igw.id}"
+  }
+  tags = {
+    Name = "PublicRT"
+  }
+}
+
+*****************************************
+resource "aws_internet_gateway" "igw" {
+ vpc_id     = "${aws_vpc.awsvpc.id}"
+  tags = {
+    Name = "InternetGW"
+  }
+}
+--------------------------------------------
+resource "aws_route_table_association" "rt-ass" {
+  count = "${length(var.subnet-cidr)}"
+  subnet_id      = "${element(aws_subnet.awspub-subnet.*.id,count.index)}"
+  route_table_id = "${aws_route_table.pub-rt.id}"
+}
+
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+resource "aws_security_group" "allow_HTTP" {
+  name        = "allow_HTTP"
+  description = "Allow HTTP inbound traffic"
+  vpc_id     = "${aws_vpc.awsvpc.id}"
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
+    cidr_blocks     = ["0.0.0.0/0"]
+    
+  }
+}
+tags {
+    Name = "Terr-SG"
+  }
+
+&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+resource "aws_instance" "web-Terraform" {
+  count = "${length(var.subnet-cidr)}"
+  ami           = "${var.Ami}"
+  instance_type = "${var.Instancetype}"
+  key_name  ="${aws_key_pair.deployer.key_name}"
+  security_groups = ["${aws_security_group.allow_HTTP.id}"]
+  subnet_id      = "${element(aws_subnet.awspub-subnet.*.id,count.index)}"
+  associate_public_ip_address = true
+  user_data = "${file("installhttpd.sh")}"
+  tags = {
+    Name = "Terr-Web"
+  }
+}
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+resource "aws_key_pair" "deployer" {
+  key_name   = "deployer-key"
+  public_key = "${file("keyvalue.pub")}"
+}
+&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+# Create a new load balancer
+resource "aws_elb" "bar" {
+  name               = "terraform-elb"
+ #availability_zones = ["${var.Avz}"]
+  subnets = ["${aws_subnet.awspub-subnet.*.id}"]
+  security_groups = ["${aws_security_group.allow_HTTP.id}"]
+  listener {
+    instance_port     = 80
+    instance_protocol = "http"
+    lb_port           = 80
+    lb_protocol       = "http"
+  }
+
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 3
+    target              = "HTTP:80/index.html"
+    interval            = 30
+  }
+
+  instances                   = ["${aws_instance.web-Terraform.*.id}"]
+  cross_zone_load_balancing   = true
+  idle_timeout                = 400
+  connection_draining         = true
+  connection_draining_timeout = 300
+
+  tags = {
+    Name = "terraform-elb"
+  }
+}
+######################################
+variable "region"
+{
+default = "us-east-1"
+}
+
+variable "vpc-cidr"
+{
+default = "10.0.0.0/16"
+}
+variable "subnet-cidr"
+{
+type = "list"
+default = ["10.0.0.5/16","10.0.0.6/16"]
+}
+}
+variable "Avz"
+{
+default = ["us-east-1a","us-east-1b"]
+}
+variable "Ami"
+{
+default = "ami-011b3ccf1bd6db744"
+}
+variable "Instancetype"
+{
+default = "t2.micro"
+}
